@@ -1,7 +1,7 @@
 # 🚶 全台行人與無障礙導航系統 (Taiwan Sidewalk Navigation)
 
 這是一個致力於改善台灣行人交通與無障礙環境的開源專案。
-透過視覺化全台人行道數據，我們期望為身障人士、輪椅使用者及一般行人打造更友善的步行導航體驗。
+透過視覺化全台人行道數據，我們期望為身障人士、輪椅使用者及一般行人打造更友善的步行體驗。
 
 ![Project Status](https://img.shields.io/badge/Status-Prototype-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
