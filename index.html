@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="utf-8">
+    <title>全台人行道導航地圖 (13份完整版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { width: 100%; height: 100vh; background: #eee; }
+        
+        /* 資訊面板樣式 */
+        .info-box {
+            position: absolute; top: 10px; left: 50px; z-index: 1000;
+            background: white; padding: 15px; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            font-family: "Microsoft JhengHei", sans-serif;
+            max-width: 300px;
+        }
+        
+        /* 讀取進度條樣式 */
+        .loading-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.7); z-index: 2000;
+            display: flex; justify-content: center; align-items: center;
+            flex-direction: column; color: white; font-family: sans-serif;
+        }
+        .spinner {
+            border: 6px solid #f3f3f3; border-top: 6px solid #3498db;
+            border-radius: 50%; width: 50px; height: 50px;
+            animation: spin 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* iPad/手機優化 */
+        @media (max-width: 600px) {
+            .info-box { left: 10px; right: 10px; top: 10px; max-width: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading" class="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loading-text">正在啟動導航系統...</div>
+        <div id="loading-detail" style="font-size: 0.8em; color: #ccc; margin-top: 5px;">準備讀取圖資</div>
+    </div>
+
+    <div class="info-box">
+        <h3 style="margin: 0 0 10px 0;">🚶 全台人行道地圖</h3>
+        <div id="status" style="font-size: 14px; color: #555;">
+            資料載入中，請稍候...
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // 1. 初始化地圖 (預設中心點：台灣中部)
+        var map = L.map('map').setView([23.97565, 120.9738819], 8);
+
+        // 2. 加入底圖 (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors | 資料來源: 國土管理署',
+            maxZoom: 19
+        }).addTo(map);
+
+        // ==========================================
+        // 👇👇👇 設定區：指定總共有 13 份檔案 👇👇👇
+        // ==========================================
+        
+        var totalParts = 13;   // <--- 這裡設定為 13
+        var mapFiles = [];
+        
+        // 自動產生 ['map_part_1.geojson', ..., 'map_part_13.geojson']
+        for (var i = 1; i <= totalParts; i++) {
+            mapFiles.push('map_part_' + i + '.geojson');
+        }
+        // ==========================================
+
+        var style = { color: "#007bff", weight: 3, opacity: 0.7 };
+        var totalFiles = mapFiles.length;
+
+        // 新的讀取邏輯：依照清單一個接一個讀
+        function loadMapData(index) {
+            
+            // 檢查是否全部讀完
+            if (index >= totalFiles) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('status').innerHTML = `✅ 圖資載入完成！<br>共載入 ${totalFiles} 份檔案。<br>請放大地圖查看藍色路網。`;
+                console.log("全部讀取完成");
+                return;
+            }
+
+            var fileName = mapFiles[index];
+            var displayIndex = index + 1;
+
+            // 更新畫面顯示
+            document.getElementById('loading-text').innerText = `正在讀取第 ${displayIndex} / ${totalFiles} 份`;
+            document.getElementById('loading-detail').innerText = `檔案: ${fileName}`;
+            document.getElementById('status').innerText = `載入中: ${fileName}...`;
+
+            // 使用 fetch 抓取檔案
+            fetch(fileName)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`找不到檔案 (HTTP ${response.status})`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // 畫圖
+                    L.geoJSON(data, {
+                        style: style,
+                        onEachFeature: function(feature, layer) {
+                            var p = feature.properties;
+                            var info = "<div style='font-size:14px'><b>🛣️ 人行道資訊</b><br><hr style='margin:5px 0'>";
+                            if(p.ROAD_NAME) info += `路名: ${p.ROAD_NAME}<br>`;
+                            if(p.SW_WTH)    info += `寬度: <b>${p.SW_WTH}</b> 公尺<br>`;
+                            if(p.SWW_WTH)   info += `淨寬(無障礙): <b style='color:green'>${p.SWW_WTH}</b> 公尺<br>`;
+                            if(p.RAMP_TYPE) info += `坡道: ${p.RAMP_TYPE}<br>`;
+                            info += "</div>";
+                            layer.bindPopup(info);
+                        }
+                    }).addTo(map);
+
+                    // 成功後，讀取下一份 (index + 1)
+                    loadMapData(index + 1);
+                })
+                .catch(error => {
+                    console.error(`Error loading ${fileName}:`, error);
+                    // ⚠️ 關鍵修改：就算這份失敗，也要繼續讀下一份，不要停下來
+                    document.getElementById('status').innerHTML += `<br><span style="color:red">⚠️ ${fileName} 讀取失敗</span>`;
+                    loadMapData(index + 1);
+                });
+        }
+
+        // 開始執行
+        loadMapData(0);
+
+    </script>
+</body>
+</html>
